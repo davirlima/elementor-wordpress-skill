@@ -2,7 +2,7 @@
   <img src="assets/banner.png" alt="Claude Skill: Elementor + WordPress. Desenvolvimento web com padrão de agência" width="100%">
 </p>
 
-# Skill Elementor + WordPress para Claude e Codex
+# Skill Elementor + WordPress para Claude, Codex e outros agentes
 
 Uma skill que ensina a IA (**Claude Code, Codex** ou qualquer agente que leia `SKILL.md`) a trabalhar em sites **WordPress feitos com Elementor / Elementor Pro** no padrão de uma agência: páginas refeitas com containers e **widgets oficiais**, header e rodapé no **Theme Builder**, **design system** no Kit do Elementor, **SEO com Rank Math**, **acessibilidade 100** no Lighthouse, imagens otimizadas em **WebP**, **animações** de entrada leves e **limpeza** segura do site.
 
@@ -23,7 +23,7 @@ Abra o Claude Code ou o Codex em qualquer pasta e cole o prompt abaixo. Ele inst
 ```text
 Instale e configure a skill "elementor-wordpress" para mim.
 
-1. Baixe o repositório https://github.com/davirlima/claude-skill-elementor-wp
+1. Baixe o repositório https://github.com/davirlima/elementor-wordpress-skill
    (git clone, ou o .zip da última Release).
 2. Copie a pasta para o diretório de skills do agente em que você está rodando:
    - Claude Code: ~/.claude/skills/elementor-wordpress/
@@ -50,7 +50,7 @@ Troque `https://SEU-SITE.com.br` pelo endereço do cliente. Se você ainda não 
 
 **No Claude Code ou no Codex (qualquer computador):**
 
-1. Baixe o **`elementor-wordpress.zip`** na página de **[Releases](https://github.com/davirlima/claude-skill-elementor-wp/releases/latest)**, ou clone o repositório.
+1. Baixe o **`elementor-wordpress.zip`** na página de **[Releases](https://github.com/davirlima/elementor-wordpress-skill/releases/latest)**, ou clone o repositório.
 2. Coloque a pasta **`elementor-wordpress`** (com o `SKILL.md` na raiz dela) no diretório de skills:
 
    | Agente | macOS / Linux | Windows |
