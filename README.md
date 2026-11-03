@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Agent Skill: Elementor + WordPress. Desenvolvimento web com padrão de agência" width="100%">
+  <img src="https://raw.githubusercontent.com/davirlima/elementor-wordpress-skill/main/assets/banner.png" alt="Agent Skill: Elementor + WordPress. Desenvolvimento web com padrão de agência" width="100%">
 </p>
 
 # Skill Elementor + WordPress para Claude, Codex e outros agentes
