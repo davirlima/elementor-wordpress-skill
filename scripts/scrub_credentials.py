@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Find and redact WordPress application passwords / Basic-auth headers left in Claude Code's local files.
+"""Find and redact WordPress application passwords / Basic-auth headers left in Claude Code / Codex local files.
 
 Offboarding step for the end of a project: after `claude mcp remove <name>` the secret is still sitting in
 ~/.claude.json backups, the prompt history, shell history and the session transcripts (anything the user pasted or
@@ -22,7 +22,7 @@ WordPress -> Users -> Profile -> Application Passwords.
 """
 import argparse, base64, binascii, os, re, sys, time
 
-DEFAULT_PATHS = ['~/.claude.json', '~/.claude', '~/.bash_history', '~/.zsh_history']
+DEFAULT_PATHS = ['~/.claude.json', '~/.claude', '~/.codex', '~/.bash_history', '~/.zsh_history']
 TEXT_EXT = {'', '.json', '.jsonl', '.md', '.txt', '.log', '.sh', '.py', '.js', '.mjs', '.yaml', '.yml'}
 PW = rb'(?:[A-Za-z0-9]{4} ){5}[A-Za-z0-9]{4}'
 RE_BASIC = re.compile(rb'Basic ([A-Za-z0-9+/]{16,}={0,2})')

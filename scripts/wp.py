@@ -12,6 +12,7 @@ Usage:
   wp.py put-data <type> <id> data.json             # writes a list (or {"meta":{"_elementor_data":"..."}}) back
   wp.py upload <file> --title T --alt A            # multipart media upload, prints id + url
   wp.py rankmath <id> meta.json                    # POST /rankmath/v1/updateMeta
+  wp.py rankmath <id> --title T --description D --keyword K   # same, no JSON file (one call, no docs to read)
   wp.py swap-media map.json in.json out.json       # map: [{"old":id,"oldurl":"2026/08/a.png","id":new,"url":"https://..","alt":".."}]
 
 After put-data, trigger an Elementor save with the MCP tool elementor-update-page-settings (see SKILL.md).
@@ -99,7 +100,8 @@ def main():
     s = sp.add_parser('data'); s.add_argument('type'); s.add_argument('id'); s.add_argument('-o', required=True)
     s = sp.add_parser('put-data'); s.add_argument('type'); s.add_argument('id'); s.add_argument('file')
     s = sp.add_parser('upload'); s.add_argument('file'); s.add_argument('--title', default=''); s.add_argument('--alt', default='')
-    s = sp.add_parser('rankmath'); s.add_argument('id'); s.add_argument('file')
+    s = sp.add_parser('rankmath'); s.add_argument('id'); s.add_argument('file', nargs='?')
+    for f in ('title', 'description', 'keyword', 'robots'): s.add_argument('--' + f)
     s = sp.add_parser('swap-media'); s.add_argument('map'); s.add_argument('infile'); s.add_argument('outfile')
     a = p.parse_args()
 
@@ -138,7 +140,12 @@ def main():
         r = curl('POST', '/wp/v2/media', extra=['-F', f"file=@{a.file}", '-F', f"title={a.title}", '-F', f"alt_text={a.alt}"])
         print(r.get('id'), r.get('source_url'), list((r.get('media_details') or {}).get('sizes', {}).keys()))
     elif a.cmd == 'rankmath':
-        meta = json.load(open(a.file))
+        meta = json.load(open(a.file)) if a.file else {}
+        for flag, key in (('title', 'rank_math_title'), ('description', 'rank_math_description'),
+                          ('keyword', 'rank_math_focus_keyword')):
+            if getattr(a, flag): meta[key] = getattr(a, flag)
+        if a.robots: meta['rank_math_robots'] = [x.strip() for x in a.robots.split(',')]
+        if not meta: sys.exit('nothing to write: pass a meta.json or --title/--description/--keyword/--robots')
         print(curl('POST', '/rankmath/v1/updateMeta', {'objectType': 'post', 'objectID': int(a.id), 'meta': meta}))
     elif a.cmd == 'swap-media':
         src = json.load(open(a.infile))

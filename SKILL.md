@@ -5,8 +5,9 @@ description: Professional workflow for building, refactoring and maintaining Wor
 
 # Elementor + WordPress — agency workflow
 
-This skill captures how a web agency wants Claude to work on client WordPress sites built with Elementor.
+This skill captures how a web agency wants the AI agent (Claude Code, Codex or any agent that reads `SKILL.md`) to work on client WordPress sites built with Elementor.
 The client sites vary (car rental, clinics, stores…), but the standard of work does not.
+The tooling is plain shell + Python/Node + the WordPress REST API, so the same skill works in any agent. The **Elementor MCP of the site in question is mandatory** (see the MCP gate below): REST complements it, it does not replace it.
 Talk to the user in their language (often Brazilian Portuguese), keep reports short, and lead with what changed and how it was verified.
 
 ## The standard the work is judged by
@@ -30,19 +31,70 @@ These are the reasons past deliveries were accepted or sent back. Keep them in m
 - **Confirm outward or destructive steps** (publishing a replacement home page, deleting content, deactivating plugins, changing slugs) unless the user already asked for exactly that.
 - **Credentials stay out of files you share.** Read them from environment variables (`WP_URL`, `WP_USER`, `WP_APP_PASSWORD`). Never write an application password into the skill, a repo, or a published page. Remind the user that `claude mcp add --header` stores the header in plain text in `~/.claude.json`.
 
+## MCP gate: the Elementor MCP of THIS site is mandatory
+
+Do not start any work on a site (reads for planning excepted) until the Elementor MCP server **for that exact site** is connected and proven. Not "some" MCP: the one whose URL host equals the site. Two sites means two servers.
+
+Run the gate at the start of every session and whenever the site changes:
+
+1. **Is it configured for this site?** `python3 scripts/env_from_mcp.py --list` prints the Elementor MCP servers in the agent config (name, URL, user, never the password); one must match the site host. Then `python3 scripts/doctor.py` (it also checks Elementor/Elementor Pro ≥ 4.3.0, which is when the MCP exists, and WordPress ≥ 6.8).
+2. **Is it live in this session?** The agent's tool list must contain that server's tools (Claude Code: `/mcp`; Codex: restart after editing `config.toml`). Prove it with one read call (list pages, get a page structure) and check the returned site is the right one.
+3. **If any step fails, force the connection; do not work around it and do not offer the manual route.** Tell the user exactly where the data comes from (do not make them guess):
+   - wp-admin → **Elementor → Elementor MCP** → **Enable MCP access** → choose the client tab (Claude Code / Codex / Claude Desktop / Cursor / Other) → tick the acknowledgment → **Generate Prompt** → **Copy prompt** → paste it here. The prompt carries the server URL, user, a freshly created application password and the exact configuration for that client. The endpoint is never guessed.
+   - Requirements: Elementor **and** Elementor Pro 4.3.0+, WordPress 6.8+, HTTPS, an administrator integration user. Older Elementor: update it first (back up, ask the user). Wordfence/2FA blocking application passwords: `references/connection.md` §6.
+   - When the prompt arrives, apply it (`claude mcp add ...` / `~/.codex/config.toml`, details in `references/setup.md`), never repeat the password, ask for a restart or `/mcp`, then re-run steps 1-2.
+4. **Read the MCP docs before using it**: `references/elementor-mcp-docs.md` is the digest of Elementor's current documentation (pinned to a date and Elementor version, with the pages to re-open), and the live tool list with its descriptions and schemas is the final authority for tool names and arguments. Cite them in your plan and report ("the MCP tool X", "per Elementor's docs, Y").
+
+What each channel is for: the **MCP** for the Elementor-native work (Atomic elements, design-system classes and variables, Theme Builder documents, popups, dynamic data, components, previews, the save trigger `elementor-update-page-settings`); the **REST API** (`scripts/wp.py`) for what the MCP does not reach (classic V3 widgets' `_elementor_data`, media, Rank Math, settings, backups, bulk contact swaps). Re-test per site which widgets the MCP handles; use the MCP wherever it can.
+
+## Documentation: read it, with shortcuts
+
+Do not work from memory on the three APIs involved. Each has a **digest pinned to a version and date** in `references/`, so the reading is mostly done and you only need to know when to go further:
+
+| Topic | Digest (read the section you need) | Re-open the source when |
+|---|---|---|
+| Elementor MCP | `references/elementor-mcp-docs.md` | the site's Elementor is newer than the pin, a tool behaves differently, or you need a capability the digest lacks |
+| WordPress REST API | `references/wordpress-rest-docs.md` | a new resource/endpoint, an unexpected status code, a newer WordPress major |
+| Rank Math | `references/rankmath-docs.md` | the plugin is much newer than the pin, or a threshold decides the task |
+
+Each digest has a "where to re-check" table (page + what to look for). When the source differs from the digest, **update the digest** (value, date, version) instead of silently working around it.
+
+## Connectivity: probe, never assume
+
+Do not tell the user "I can't reach the WordPress API" (sandbox, no access, limitations) from a guess. First run the 10-second preflight:
+
+```
+eval "$(python3 scripts/env_from_mcp.py)"   # loads WP_* from Claude Code/Codex MCP config, no password printed
+python3 scripts/doctor.py                    # DNS/TLS/HTTP, auth, Rank Math route, MCP route, with the exact cause
+```
+
+- `doctor.py` exit 0 → REST works and the MCP is configured for the site; do the job. Exit 4 → the MCP gate failed: connect it before anything else.
+- Transport failure (DNS/connection/timeout/TLS) in a sandboxed agent means **the sandbox blocks the network**. That is a permission to request (approve the command / escalate / enable network for the sandbox, or have the user run it with `!`), not a reason to stop. `doctor.py` prints the fix for Codex and Claude Code.
+- Auth failure → `references/connection.md` §6. Only after the probe fails for a real, named reason may you report a blocker, and then quote the exact error and the one thing the user has to do.
+- Use `curl`/`scripts/wp.py` (curl-based), not the agent's web-fetch tool: the web-fetch tools cannot send the Authorization header and are often network-restricted.
+
 ## Never stop at access: finish the job
 
 A past chat stalled on "the MCP can't edit these widgets" and "the WP_* variables aren't set", handed the work back to the user, and the user (rightly) found that unacceptable. Both blockers have a standard answer:
 
-1. **The Elementor MCP only edits V4 atomic widgets and a short list of classic ones.** Buttons, icon lists, social icons, text editors, headings and most containers are classic (V3) widgets: through the MCP they come back empty. That is expected, not a dead end. Read and write `_elementor_data` through the WordPress REST API (`scripts/wp.py`), and use the MCP only for what it does well — the save trigger `elementor-update-page-settings` and preview links.
-2. **Credentials.** If `WP_URL/WP_USER/WP_APP_PASSWORD` are not set, run `eval "$(python3 scripts/env_from_mcp.py [site-host])"`. The Authorization header of the Elementor MCP server the user configured is the credential they already gave you for that site; the script exports it without printing the password. Ask the user to `! export` the variables only if that script finds nothing.
+1. **The Elementor MCP is strong on V4 atomic widgets, Theme Builder and the design system, but (in our experience) returns classic widgets empty.** Buttons, icon lists, social icons, text editors, headings and most containers are classic (V3) widgets: through the MCP they come back empty. That is expected, not a dead end, and not a reason to drop the MCP. Read and write those widgets' `_elementor_data` through the WordPress REST API (`scripts/wp.py`) and keep using the MCP for the rest, the save trigger `elementor-update-page-settings` and preview links.
+2. **Credentials.** If `WP_URL/WP_USER/WP_APP_PASSWORD` are not set, run `eval "$(python3 scripts/env_from_mcp.py [site-host])"`. The Authorization header of the Elementor MCP server the user configured (Claude Code `~/.claude.json`/`.mcp.json` or Codex `~/.codex/config.toml`) is the credential they already gave you for that site; the script exports it without printing the password. Ask the user to `! export` the variables only if that script finds nothing.
 3. Do not close a turn by offering the user the manual route ("do it in the editor and I'll check") when REST access is possible. Do the work, then verify it.
 
 Also hunt for the same data outside the pages: header, footer, popups, the 404 template, Custom Code (chatbots and widgets keep numbers/links as JS constants), Rank Math schema (`telephone`, `sameAs`), and `post_content`. A request like "change the WhatsApp number everywhere" is not done until the rendered pages, the chat widget and the structured data all agree — see `references/recipes.md`.
 
 ## Setup and offboarding
 
-If the site is not connected yet (no Elementor MCP tools, no `WP_*` access), guide the connection first: the user enables **Elementor → Elementor MCP** in wp-admin, generates the connection prompt there and pastes it into Claude Code; you apply it with `claude mcp add` and never repeat the password. When the project ends, offboard: remove the MCP server, revoke the application password in WordPress, and scrub the local traces with `scripts/scrub_credentials.py`. Full steps, probes and caveats: `references/setup.md`.
+If the site is not connected yet (no Elementor MCP tools for it, no `WP_*` access), the MCP gate above applies: guide the connection first (the user can also paste the ready-made prompt from the README, which makes the agent do all of this): the user enables **Elementor → Elementor MCP** in wp-admin, generates the connection prompt there and pastes it into Claude Code; you apply it with `claude mcp add` (Codex: an entry in `~/.codex/config.toml`) and never repeat the password. When the project ends, offboard: remove the MCP server, revoke the application password in WordPress, and scrub the local traces with `scripts/scrub_credentials.py`. Full steps, probes and caveats: `references/setup.md`.
+
+## Rank Math: read the digest first, then act
+
+The docs matter, so they are already read for you: `references/rankmath-docs.md` is a digest of Rank Math's Knowledge Base **pinned to a plugin version and date**, with the thresholds, the REST routes, the known failure causes and a table saying which KB page to open for which need. Start there, not in the plugin's source or a web search.
+
+1. Read the digest (§2-§4 usually answer it). Compare the site's Rank Math version (`GET /wp/v2/plugins`) with the pin; if it is much newer, or a threshold decides the task, open the KB page named in its §1 table and update the digest if something changed.
+2. Set meta in one call: `python3 scripts/wp.py rankmath <page-id> --title "<Topic> | <Brand>" --description "<140-160 chars>" --keyword "<main keyword>"`, then **read it back** (`updateMeta` is an internal route, not a documented API).
+3. 0 words / no images / no links: `python3 scripts/plain_content.py <url> out.html --write <id>`.
+4. The score is recomputed in the browser; ask the user to open the page in the editor (or run *Update SEO Scores*) and report only the score they read.
 
 ## Project kickoff
 
@@ -60,7 +112,7 @@ Write the answers into a small project notes file in your scratchpad so later st
 
 Work in this order on a full refactor; for single requests, jump to the relevant step. After each step, verify and report before moving on — the user iterates in small rounds ("only one more detail…"), so expect feedback and keep changes scoped.
 
-1. **Connect and inventory** — pages, templates (`elementor_library` with `_elementor_template_type`), custom code, active Kit, plugins, media. (`references/connection.md`)
+1. **MCP gate, connect and inventory** — pages, templates (`elementor_library` with `_elementor_template_type`), custom code, active Kit, plugins, media. (`references/connection.md`)
 2. **Design system first** — organize the active Kit: named colors, typography scale, theme style defaults (body, headings, links, buttons, forms). (`references/design-system.md`)
 3. **Theme Builder** — header, footer, 404 and the mobile-menu popup as site-wide templates with conditions. (`references/elementor-json.md` → Theme Builder)
 4. **Pages** — build or refactor with `scripts/elementor_kit.py`, publish as a new page, archive the old one, set as front page if it is the home. (`references/page-patterns.md`)
@@ -90,8 +142,9 @@ All scripts read the connection from `WP_URL`, `WP_USER`, `WP_APP_PASSWORD`, and
 
 | Script | Use it to |
 |---|---|
-| `scripts/env_from_mcp.py` | export `WP_*` from the Elementor MCP server the user already configured (no password printed) |
-| `scripts/wp.py` | get/put/backup Elementor data, upload media, call Rank Math, list content |
+| `scripts/doctor.py` | connectivity preflight: tells the exact reason the API is unreachable (sandbox network, auth, plugin) |
+| `scripts/env_from_mcp.py` | export `WP_*` from the Elementor MCP server the user already configured in Claude Code or Codex (no password printed) |
+| `scripts/wp.py` | get/put/backup Elementor data, upload media, set Rank Math meta (`rankmath <id> --title --description --keyword`), list content |
 | `scripts/scrub_credentials.py` | offboarding: find and redact application passwords / Basic headers left in Claude Code history and transcripts (dry run first) |
 | `scripts/swap_contact.py` | change a phone/WhatsApp number across documents by intent (e.g. keep franchise links), dry-run first |
 | `scripts/elementor_kit.py` | build containers and official widgets bound to global tokens (import it) |

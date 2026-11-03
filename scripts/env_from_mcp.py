@@ -8,12 +8,18 @@ MCP cannot read or edit classic (V3) widgets such as buttons, icon lists and soc
 Usage (the password is never printed to the terminal):
     eval "$(python3 env_from_mcp.py [site-substring])"
 
+`--list` prints "<server-name> <mcp-url> <user>" for each configured Elementor MCP server (never the password); the
+doctor and the SKILL.md MCP gate use it to check that a server for THIS site is configured.
+
 With several Elementor MCP servers configured, pass part of the site's host to pick one.
-Looks in ~/.claude.json (user + per-project entries) and ./.mcp.json.
+Looks in ~/.claude.json (user + per-project entries), ./.mcp.json and Codex's ~/.codex/config.toml
+([mcp_servers.<name>] with http_headers / headers).
 """
 import base64, json, os, sys
 
-NEEDLE = sys.argv[1] if len(sys.argv) > 1 else ''
+ARGS = [a for a in sys.argv[1:] if not a.startswith('--')]
+LIST = '--list' in sys.argv
+NEEDLE = ARGS[0] if ARGS else ''
 
 
 def servers():
@@ -32,7 +38,19 @@ def servers():
             elif isinstance(o, list): stack.extend(o)
 
 
-for name, s in servers():
+def codex_servers():
+    path = os.path.join(os.environ.get('CODEX_HOME', os.path.expanduser('~/.codex')), 'config.toml')
+    try:
+        import tomllib
+        data = tomllib.load(open(path, 'rb'))
+    except Exception: return
+    for name, s in (data.get('mcp_servers') or {}).items():
+        if isinstance(s, dict):
+            hdr = s.get('http_headers') or s.get('headers') or {}
+            yield name, {'url': s.get('url', ''), 'headers': hdr}
+
+
+for name, s in list(servers()) + list(codex_servers()):
     url = s.get('url', '')
     if '/wp-json/elementor/mcp' not in url or NEEDLE not in url: continue
     auth = next((v for k, v in (s.get('headers') or {}).items() if k.lower() == 'authorization'), '')
@@ -40,11 +58,14 @@ for name, s in servers():
     try: user, pwd = base64.b64decode(auth.split(None, 1)[1]).decode().split(':', 1)
     except Exception: continue
     site = url.split('/wp-json/')[0]
+    if LIST:
+        print(name, url, user); continue
     q = lambda x: "'" + x.replace("'", "'\\''") + "'"
     print(f'export WP_URL={q(site)} WP_USER={q(user)} WP_APP_PASSWORD={q(pwd)}')
     sys.stderr.write(f'credentials taken from MCP server "{name}" ({site}), user {user}\n')
     sys.exit(0)
 
+if LIST: sys.exit(0)
 sys.stderr.write('no Elementor MCP server with a Basic Authorization header found — ask the user for WP_URL / WP_USER / '
                  'application password once (they can `! export` them), or follow references/setup.md to connect the site, then continue.\n')
 sys.exit(1)

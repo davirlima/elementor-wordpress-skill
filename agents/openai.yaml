@@ -1,0 +1,4 @@
+interface:
+  display_name: "Elementor + WordPress"
+  short_description: "Refactor, SEO, media and cleanup for Elementor/WordPress sites, over the REST API."
+  default_prompt: "Use $elementor-wordpress to work on my Elementor site."
