@@ -1,6 +1,6 @@
 ---
 name: elementor-wordpress
-description: Professional workflow for building, refactoring and maintaining WordPress sites made with Elementor / Elementor Pro, operated remotely through the Elementor MCP server and the WordPress REST API. Covers page refactors with containers, Theme Builder (header, footer, 404, popups), global design system in the Elementor Kit, Rank Math SEO, Lighthouse accessibility, media optimization (WebP, SEO file names), entrance animations, site cleanup and safe publishing. Use this skill whenever the user mentions Elementor, an Elementor/WordPress site, a WordPress page, Theme Builder, the Elementor Kit or global styles, Rank Math, WP Rocket, a client site to refactor, "deixar no padrão do Elementor", or asks to create, clone, publish, optimize or clean pages on a WordPress site — even if they don't say "Elementor" explicitly.
+description: Use when building, editing, maintaining or troubleshooting Elementor sites, Elementor Theme Builder or Kit, or Rank Math on an Elementor site.
 ---
 
 # Elementor + WordPress — agency workflow
@@ -9,6 +9,10 @@ This skill captures how a web agency wants the AI agent (Claude Code, Codex or a
 The client sites vary (car rental, clinics, stores…), but the standard of work does not.
 The tooling is plain shell + Python/Node + the WordPress REST API, so the same skill works in any agent. The **Elementor MCP of the site in question is mandatory** (see the MCP gate below): REST complements it, it does not replace it.
 Talk to the user in their language (often Brazilian Portuguese), keep reports short, and lead with what changed and how it was verified.
+
+## Agent environment and paths
+
+Resolve every `scripts/`, `references/` and `assets/` path relative to the directory containing this `SKILL.md`, not the current working directory. Use an absolute path or change to that directory before running examples; keep user output and backups in a suitable project or scratch directory. For Codex read `references/runtime-codex.md`; for Claude Code read `references/runtime-claude.md`. For other agents use the available MCP tools and permission mechanisms without assuming either client. The shared site workflow below remains authoritative.
 
 ## The standard the work is judged by
 
@@ -37,9 +41,9 @@ Do not start any work on a site (reads for planning excepted) until the Elemento
 
 Run the gate at the start of every session and whenever the site changes:
 
-1. **Is it configured for this site?** `python3 scripts/env_from_mcp.py --list` prints the Elementor MCP servers in the agent config (name, URL, user, never the password); one must match the site host. Then `python3 scripts/doctor.py` (it also checks Elementor/Elementor Pro ≥ 4.3.0, which is when the MCP exists, and WordPress ≥ 6.8).
+1. **Is it configured for this site?** `python3 scripts/env_from_mcp.py --list` prints the Elementor MCP servers in the agent config (name, URL, user, never the password); one should match the site host; the helper cannot discover every authentication or endpoint configuration, so prove access with the live MCP tools even if it finds nothing. Then `python3 scripts/doctor.py` (it checks accessible Elementor/Elementor Pro versions; verify WordPress ≥ 6.8 separately).
 2. **Is it live in this session?** The agent's tool list must contain that server's tools (Claude Code: `/mcp`; Codex: restart after editing `config.toml`). Prove it with one read call (list pages, get a page structure) and check the returned site is the right one.
-3. **If any step fails, force the connection; do not work around it and do not offer the manual route.** Tell the user exactly where the data comes from (do not make them guess):
+3. **If the live MCP connection is unavailable, connect it; do not work around it and do not offer the manual route.** Tell the user exactly where the data comes from (do not make them guess):
    - wp-admin → **Elementor → Elementor MCP** → **Enable MCP access** → choose the client tab (Claude Code / Codex / Claude Desktop / Cursor / Other) → tick the acknowledgment → **Generate Prompt** → **Copy prompt** → paste it here. The prompt carries the server URL, user, a freshly created application password and the exact configuration for that client. The endpoint is never guessed.
    - Requirements: Elementor **and** Elementor Pro 4.3.0+, WordPress 6.8+, HTTPS, an administrator integration user. Older Elementor: update it first (back up, ask the user). Wordfence/2FA blocking application passwords: `references/connection.md` §6.
    - When the prompt arrives, apply it (`claude mcp add ...` / `~/.codex/config.toml`, details in `references/setup.md`), never repeat the password, ask for a restart or `/mcp`, then re-run steps 1-2.
@@ -64,12 +68,12 @@ Each digest has a "where to re-check" table (page + what to look for). When the 
 Do not tell the user "I can't reach the WordPress API" (sandbox, no access, limitations) from a guess. First run the 10-second preflight:
 
 ```
-eval "$(python3 scripts/env_from_mcp.py)"   # loads WP_* from Claude Code/Codex MCP config, no password printed
+eval "$(python3 scripts/env_from_mcp.py <exact-site-host>)"   # run from the skill directory; do not display output
 python3 scripts/doctor.py                    # DNS/TLS/HTTP, auth, Rank Math route, MCP route, with the exact cause
 ```
 
 - `doctor.py` exit 0 → REST works and the MCP is configured for the site; do the job. Exit 4 → the MCP gate failed: connect it before anything else.
-- Transport failure (DNS/connection/timeout/TLS) in a sandboxed agent means **the sandbox blocks the network**. That is a permission to request (approve the command / escalate / enable network for the sandbox, or have the user run it with `!`), not a reason to stop. `doctor.py` prints the fix for Codex and Claude Code.
+- Transport failure (DNS/connection/timeout/TLS) can come from the sandbox, host, network or TLS configuration; investigate the reported error. That is a permission to request (approve the command / escalate / enable network for the sandbox, or have the user run it with `!`), not a reason to stop. `doctor.py` prints the fix for Codex and Claude Code.
 - Auth failure → `references/connection.md` §6. Only after the probe fails for a real, named reason may you report a blocker, and then quote the exact error and the one thing the user has to do.
 - Use `curl`/`scripts/wp.py` (curl-based), not the agent's web-fetch tool: the web-fetch tools cannot send the Authorization header and are often network-restricted.
 
@@ -78,14 +82,14 @@ python3 scripts/doctor.py                    # DNS/TLS/HTTP, auth, Rank Math rou
 A past chat stalled on "the MCP can't edit these widgets" and "the WP_* variables aren't set", handed the work back to the user, and the user (rightly) found that unacceptable. Both blockers have a standard answer:
 
 1. **The Elementor MCP is strong on V4 atomic widgets, Theme Builder and the design system, but (in our experience) returns classic widgets empty.** Buttons, icon lists, social icons, text editors, headings and most containers are classic (V3) widgets: through the MCP they come back empty. That is expected, not a dead end, and not a reason to drop the MCP. Read and write those widgets' `_elementor_data` through the WordPress REST API (`scripts/wp.py`) and keep using the MCP for the rest, the save trigger `elementor-update-page-settings` and preview links.
-2. **Credentials.** If `WP_URL/WP_USER/WP_APP_PASSWORD` are not set, run `eval "$(python3 scripts/env_from_mcp.py [site-host])"`. The Authorization header of the Elementor MCP server the user configured (Claude Code `~/.claude.json`/`.mcp.json` or Codex `~/.codex/config.toml`) is the credential they already gave you for that site; the script exports it without printing the password. Ask the user to `! export` the variables only if that script finds nothing.
+2. **Credentials.** If `WP_URL/WP_USER/WP_APP_PASSWORD` are not set, run `eval "$(python3 scripts/env_from_mcp.py <exact-site-host>)"`. The Authorization header of the Elementor MCP server the user configured (Claude Code `~/.claude.json`/`.mcp.json` or Codex `~/.codex/config.toml`) is the credential they already gave you for that site; the script exports it without printing the password. Ask the user to `! export` the variables only if that script finds nothing.
 3. Do not close a turn by offering the user the manual route ("do it in the editor and I'll check") when REST access is possible. Do the work, then verify it.
 
 Also hunt for the same data outside the pages: header, footer, popups, the 404 template, Custom Code (chatbots and widgets keep numbers/links as JS constants), Rank Math schema (`telephone`, `sameAs`), and `post_content`. A request like "change the WhatsApp number everywhere" is not done until the rendered pages, the chat widget and the structured data all agree — see `references/recipes.md`.
 
 ## Setup and offboarding
 
-If the site is not connected yet (no Elementor MCP tools for it, no `WP_*` access), the MCP gate above applies: guide the connection first (the user can also paste the ready-made prompt from the README, which makes the agent do all of this): the user enables **Elementor → Elementor MCP** in wp-admin, generates the connection prompt there and pastes it into Claude Code; you apply it with `claude mcp add` (Codex: an entry in `~/.codex/config.toml`) and never repeat the password. When the project ends, offboard: remove the MCP server, revoke the application password in WordPress, and scrub the local traces with `scripts/scrub_credentials.py`. Full steps, probes and caveats: `references/setup.md`.
+If the site is not connected yet (no Elementor MCP tools for it, no `WP_*` access), the MCP gate above applies: guide the connection first (the user can also paste the ready-made prompt from the README, which makes the agent do all of this): the user enables **Elementor → Elementor MCP** in wp-admin, generates the connection prompt there and pastes it into Claude Code; you apply it with `claude mcp add` (Codex: an entry in `~/.codex/config.toml`) and never repeat the password. Offboard only when the user requests or authorizes disconnecting and removing credentials; review each action before applying it. Full steps, probes and caveats: `references/setup.md`.
 
 ## Rank Math: read the digest first, then act
 

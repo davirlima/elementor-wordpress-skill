@@ -32,7 +32,7 @@ Instale e configure a skill "elementor-wordpress" para mim.
 3. Confira as dependências (python3, node, curl, Chromium) e me diga o que faltar e como instalar.
 4. Meu site é: https://SEU-SITE.com.br
    O Elementor MCP DESTE site é obrigatório. Rode python3 scripts/env_from_mcp.py --list e depois
-   eval "$(python3 scripts/env_from_mcp.py)" e python3 scripts/doctor.py.
+   a partir da pasta instalada da skill, eval "$(python3 scripts/env_from_mcp.py SEU-SITE.com.br)" e python3 scripts/doctor.py.
    - Se o MCP deste site ainda não estiver conectado, me guie e não siga sem ele: em wp-admin,
      Elementor -> Elementor MCP -> Enable MCP access -> aba do seu agente -> Generate Prompt ->
      Copy prompt, que eu colo aqui. Aplique a conexão sem repetir a senha em nenhuma resposta.

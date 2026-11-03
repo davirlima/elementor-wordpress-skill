@@ -95,16 +95,24 @@ def main():
                           capture_output=True, text=True).stdout
     try: plugins = {x['plugin'].split('/')[0]: x for x in json.loads(vers)}
     except Exception: plugins = {}
+    versions_ok = True
     for slug, label, minimum in (('elementor', 'Elementor', (4, 3, 0)), ('elementor-pro', 'Elementor Pro', (4, 3, 0))):
         pl = plugins.get(slug)
-        if not pl: say(slug != 'elementor', f'{label}: not found / plugins list not readable'); continue
+        if not pl:
+            say(False, f'{label}: not found / plugins list not readable')
+            versions_ok = False
+            continue
         v = tuple(int(x) for x in (pl['version'].split('-')[0].split('.') + ['0', '0'])[:3] if x.isdigit())
         ok = pl['status'] == 'active' and v >= minimum
+        versions_ok = versions_ok and ok
         say(ok, f"{label} {pl['version']} ({pl['status']})" + ('' if ok else f" -> the Elementor MCP needs {'.'.join(map(str, minimum))}+ and the plugin active: update (backup first, ask the user)"))
     mcp_ok = mcp_check(url)
     r = subprocess.run(['curl', '-s', '-m', '25', '-o', '/dev/null', '-w', '%{http_code}', '-H', h, f'{url}/wp-json/rankmath/v1/'],
                        capture_output=True, text=True).stdout
     say(r == '200', f'Rank Math REST namespace -> HTTP {r} ' + ('' if r == '200' else '(plugin inactive or route blocked)'))
+    if not versions_ok:
+        print('Plugin requirements could not be verified; check versions and activation before proceeding.')
+        return 5
     if not mcp_ok:
         print('\nREST works but the Elementor MCP is NOT connected for this site. It is mandatory: follow the MCP gate in SKILL.md '
               '(references/elementor-mcp-docs.md §2) and do not start the work until it passes.'); return 4

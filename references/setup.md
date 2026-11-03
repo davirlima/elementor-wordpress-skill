@@ -29,7 +29,7 @@ The prompt is the user's own instruction to configure their client — do it, wi
    ```
    If auto mode refuses to run it, ask the user to run the same command with the `!` prefix. Edit `~/.claude.json` by hand only if the CLI is unavailable: keep a copy, keep the JSON valid, touch only `mcpServers`.
 2. **Never repeat the password** in your replies and never write it to a file, memory, commit message, repo or the skill. It has now entered the history and the transcript — that is what offboarding cleans up.
-3. Ask the user to run `/mcp` (or restart Claude Code) so the server connects, then verify: `elementor-list-posts` (MCP) and `scripts/wp.py whoami` (REST, after `eval "$(python3 scripts/env_from_mcp.py)"`).
+3. Ask the user to run `/mcp` (or restart Claude Code) so the server connects, then verify: `elementor-list-posts` (MCP) and `scripts/wp.py whoami` (REST, after `eval "$(python3 scripts/env_from_mcp.py <exact-site-host>)"`).
 4. If the server is rejected ("rejected the Authorization header") → `references/connection.md` §6 (Wordfence, revoked password).
 
 ### Codex (and other agents)
@@ -50,7 +50,7 @@ The MCP is mandatory (SKILL.md, MCP gate). Do not continue with REST alone and d
 What the MCP does not do (classic widgets, media, Rank Math, bulk edits) is done over REST with `WP_*` (loaded by `env_from_mcp.py`); that complements the MCP, it never replaces it. The Elementor save trigger (`elementor-update-page-settings`) only exists through the MCP, which is one more reason it is required.
 
 ## 5. Offboarding at the end of a project
-Do this when the user says the work is finished, or asks to remove the connection and any saved data.
+Do this only when the user requests or authorizes offboarding. Finishing work alone does not authorize removing a shared connection or credentials.
 
 1. **Remove the server:** `claude mcp remove <name> -s user` (Codex: delete the `[mcp_servers.<name>]` block from `~/.codex/config.toml`) (check `-s local` / `-s project` too with `claude mcp list`).
 2. **Revoke the credential in WordPress** — the only step that really invalidates it: Users → Profile → Application Passwords → Revoke (or revoke all for the dedicated user). Via REST, with that same credential: `GET /wp/v2/users/me/application-passwords/introspect` returns the uuid of the credential in use; `DELETE /wp/v2/users/me/application-passwords/<uuid>` removes it. Only do this when the user asks or confirms: it ends your own access.
